@@ -39,8 +39,9 @@ def make_sheets_dict(sheet_names,parent_folder_path):
 
 def add_abfs(sheets,abfs_names,parent_folder_path_ABFS):
     for sheet in sheets.keys():
+        traces = []
         df = sheets[sheet]
-        traces = set(df["Trace name"].unique())  # unique trace names from sheet as a set for faster lookup
+        traces = df["Trace name"].unique()  
         
         abfs = {}
         for trace in abfs_names:
@@ -57,7 +58,7 @@ def add_abfs(sheets,abfs_names,parent_folder_path_ABFS):
             "abfs": abfs
         }
 
-        return sheets
+    return sheets
     
 
 
