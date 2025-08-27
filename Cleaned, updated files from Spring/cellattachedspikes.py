@@ -505,32 +505,31 @@ def order_cells(df: pd.DataFrame, by: str = "mean") -> list[str]:
              .agg(mean="mean", median="median"))
     return agg[by].sort_values(kind="mergesort").index.tolist()
 
-# -------------------- plot 1: dash marks --------------------
 def plot_spike_dashes(df: pd.DataFrame, cell_order: list[str] | None = None, order_by: str = "mean",
                       base_lw: float = 1.5, lw_scale: float = 0.8, dash_halfwidth: float = 0.35,
                       show_means: bool = True, show_medians: bool = True,
-                      mean_color: str = "tab:orange", median_color: str = "tab:green",
-                      marker_size: float = 40.0):
+                      spike_color: str = "tab:blue", mean_color: str = "tab:orange", median_color: str = "tab:green",
+                      marker_size: float = 40.0, ax: plt.Axes | None = None):
     """
     Dash for each spike frequency per cell.
-    - Spikes are drawn as blue dashes.
-    - If multiple spikes have the exact same frequency in a cell,
-      the line width is increased proportionally.
-    - Overlays mean and median as dots.
-    - Adds error bars for mean ± standard deviation.
+    - Spikes: blue horizontal dashes (thicker = more duplicates)
+    - No SD bars.
+    - Mean (orange) and Median (green) markers plotted above dashes (via zorder).
     """
     _validate_df(df)
     d = df.dropna(subset=["spike_frequency"]).copy()
     if cell_order is None:
         cell_order = order_cells(d, by=order_by)
 
+    created_fig = None
+    if ax is None:
+        created_fig, ax = plt.subplots(figsize=(max(8, len(cell_order) * 0.7), 5), constrained_layout=True)
+
     # map cells to x positions
     xmap = {cell: i for i, cell in enumerate(cell_order, start=1)}
+    means, medians, xs = [], [], []
 
-    fig, ax = plt.subplots(figsize=(max(8, len(cell_order) * 0.7), 5), constrained_layout=True)
-
-    # For each cell, count duplicates of identical frequencies
-    means, medians, stds, xs = [], [], [], []
+    # Draw dashes (zorder=1 so markers can sit on top)
     for cell in cell_order:
         sub = d[d["cell"] == cell]
         if sub.empty:
@@ -540,39 +539,34 @@ def plot_spike_dashes(df: pd.DataFrame, cell_order: list[str] | None = None, ord
         for freq, cnt in counts.items():
             lw = base_lw + lw_scale * (np.sqrt(cnt) - 1.0)
             ax.hlines(y=freq, xmin=x - dash_halfwidth, xmax=x + dash_halfwidth,
-                      linewidth=lw, color="tab:blue")
+                      linewidth=lw, color=spike_color, zorder=1)
 
-        # Collect stats for overlay
         means.append(sub["spike_frequency"].mean())
         medians.append(sub["spike_frequency"].median())
-        stds.append(sub["spike_frequency"].std())
         xs.append(x)
 
-    # Overlay stats
+    # Overlay stats (higher zorder so they’re on top of the dashes)
     if show_means:
-        ax.errorbar(xs, means, yerr=stds, fmt='o', color=mean_color,
-                    markersize=marker_size/10, label="Mean ± SD", capsize=4)
+        ax.scatter(xs, means, s=marker_size, color=mean_color, label="Mean",   zorder=4)
     if show_medians:
-        ax.scatter(xs, medians, s=marker_size, color=median_color, label="Median")
+        ax.scatter(xs, medians, s=marker_size, color=median_color, label="Median", zorder=5)
 
-    ax.set_title(f"Spike frequencies by cell — dash view (order by {order_by})")
+    ax.set_title(f"Dash view (order by {order_by})")
     ax.set_ylabel("Spike frequency (Hz)")
     ax.set_xlabel("Cell")
     ax.set_xticks(list(xmap.values()))
     ax.set_xticklabels(cell_order, rotation=45, ha="right")
     if show_means or show_medians:
         ax.legend()
-    plt.show()
+
+    if created_fig is not None:
+        plt.show()
 
 # -------------------- plot 2: violins with median/mean dots --------------------
-
 def plot_violins_with_stats(df: pd.DataFrame, cell_order: list[str] | None = None, order_by: str = "mean",
                             show_means: bool = True, show_medians: bool = True,
                             mean_color: str = "tab:orange", median_color: str = "tab:green",
-                            marker_size: float = 40.0):
-    """
-    Violin plots per cell (matplotlib), with optional overlaid mean/median dots (different colors).
-    """
+                            marker_size: float = 40.0, ax: plt.Axes | None = None):
     _validate_df(df)
     d = df.dropna(subset=["spike_frequency"]).copy()
     if cell_order is None:
@@ -580,7 +574,9 @@ def plot_violins_with_stats(df: pd.DataFrame, cell_order: list[str] | None = Non
 
     data = [d.loc[d["cell"] == c, "spike_frequency"].to_numpy() for c in cell_order]
 
-    fig, ax = plt.subplots(figsize=(max(8, len(cell_order) * 0.7), 5), constrained_layout=True)
+    created_fig = None
+    if ax is None:
+        created_fig, ax = plt.subplots(figsize=(max(8, len(cell_order) * 0.7), 5), constrained_layout=True)
 
     parts = ax.violinplot(data, showmeans=False, showmedians=False, showextrema=False)
     for pc in parts['bodies']:
@@ -595,23 +591,22 @@ def plot_violins_with_stats(df: pd.DataFrame, cell_order: list[str] | None = Non
     if show_medians:
         ax.scatter(xs, medians, s=marker_size, color=median_color, label="Median")
 
-    ax.set_title(f"Spike frequencies by cell — violin view (order by {order_by})")
+    ax.set_title(f"Violin + mean/median (order by {order_by})")
     ax.set_ylabel("Spike frequency (Hz)")
     ax.set_xlabel("Cell")
     ax.set_xticks(xs)
     ax.set_xticklabels(cell_order, rotation=45, ha="right")
     if show_means or show_medians:
         ax.legend()
-    plt.show()
+
+    if created_fig is not None:
+        plt.show()
+
 
 # -------------------- plot 3: summary dots only (mean & median) --------------------
-
 def plot_summary_dots(df: pd.DataFrame, cell_order: list[str] | None = None, order_by: str = "mean",
                       mean_color: str = "tab:orange", median_color: str = "tab:green",
-                      marker_size: float = 50.0):
-    """
-    A clean summary: shows only mean and median dots per cell.
-    """
+                      marker_size: float = 50.0, ax: plt.Axes | None = None):
     _validate_df(df)
     d = df.dropna(subset=["spike_frequency"]).copy()
     if cell_order is None:
@@ -622,64 +617,208 @@ def plot_summary_dots(df: pd.DataFrame, cell_order: list[str] | None = None, ord
              .reindex(cell_order))
 
     xs = np.arange(1, len(cell_order) + 1)
-    fig, ax = plt.subplots(figsize=(max(8, len(cell_order) * 0.7), 5), constrained_layout=True)
+    created_fig = None
+    if ax is None:
+        created_fig, ax = plt.subplots(figsize=(max(8, len(cell_order) * 0.7), 5), constrained_layout=True)
 
     ax.scatter(xs, agg["mean"].to_numpy(), s=marker_size, color=mean_color, label="Mean")
     ax.scatter(xs, agg["median"].to_numpy(), s=marker_size, color=median_color, label="Median")
 
-    ax.set_title(f"Spike frequencies by cell — summary dots (order by {order_by})")
+    ax.set_title(f"Summary dots (order by {order_by})")
     ax.set_ylabel("Spike frequency (Hz)")
     ax.set_xlabel("Cell")
     ax.set_xticks(xs)
     ax.set_xticklabels(cell_order, rotation=45, ha="right")
     ax.legend()
-    plt.show()
+
+    if created_fig is not None:
+        plt.show()
 
 
-def plot_boxplot_spike_freq(df: pd.DataFrame, order: list[str] | None = None, order_by: str = "mean"):
+# -------------------- boxplot + jitter (matplotlib-only) --------------------
+def plot_boxplot_spike_freq(df: pd.DataFrame, order: list[str] | None = None, order_by: str = "mean",
+                            ax: plt.Axes | None = None):
     if order is None:
         order = order_cells(df, by=order_by)
 
     data = [df.loc[df["cell"] == c, "spike_frequency"].dropna().values for c in order]
     positions = np.arange(1, len(order) + 1)
 
-    fig, ax = plt.subplots(figsize=(max(8, len(order) * 0.6), 5))
+    created_fig = None
+    if ax is None:
+        created_fig, ax = plt.subplots(figsize=(max(8, len(order) * 0.6), 5), constrained_layout=True)
 
-    # Boxplot
-    bp = ax.boxplot(data, positions=positions, widths=0.6, patch_artist=True,
-                    showfliers=False, boxprops=dict(facecolor="lightgray"))
+    ax.boxplot(data, positions=positions, widths=0.6, patch_artist=True,
+               showfliers=False, boxprops=dict(facecolor="lightgray"))
 
-    # Jittered scatter points
     for i, y in enumerate(data, start=1):
-        x_jitter = np.random.normal(loc=i, scale=0.06, size=len(y))
-        ax.scatter(x_jitter, y, color="tab:blue", alpha=0.6, s=12)
+        if len(y):
+            x_jitter = np.random.normal(loc=i, scale=0.06, size=len(y))
+            ax.scatter(x_jitter, y, color="tab:blue", alpha=0.6, s=12)
 
-    ax.set_title("Spike frequencies by cell — Boxplot + jittered points")
+    ax.set_title("Boxplot + jitter")
     ax.set_ylabel("Spike frequency (Hz)")
     ax.set_xlabel("Cell")
     ax.set_xticks(positions)
     ax.set_xticklabels(order, rotation=45, ha="right")
-    plt.tight_layout()
-    plt.show()
+
+    if created_fig is not None:
+        plt.tight_layout()
+        plt.show()
 
 
-def plot_strip_spike_freq(df: pd.DataFrame, order: list[str] | None = None, order_by: str = "mean"):
+# -------------------- strip (swarm-like) --------------------
+def plot_strip_spike_freq(df: pd.DataFrame, order: list[str] | None = None, order_by: str = "mean",
+                          ax: plt.Axes | None = None):
     if order is None:
         order = order_cells(df, by=order_by)
-    fig, ax = plt.subplots(figsize=(max(8, len(order) * 0.6), 5))
+
+    created_fig = None
+    if ax is None:
+        created_fig, ax = plt.subplots(figsize=(max(8, len(order) * 0.6), 5), constrained_layout=True)
 
     for i, cell in enumerate(order, start=1):
         y = df.loc[df["cell"] == cell, "spike_frequency"].dropna().values
-        x_jitter = np.random.normal(loc=i, scale=0.1, size=len(y))  # jitter in x
-        ax.scatter(x_jitter, y, color="tab:blue", alpha=0.7, s=20)
+        if len(y):
+            x_jitter = np.random.normal(loc=i, scale=0.10, size=len(y))
+            ax.scatter(x_jitter, y, color="tab:blue", alpha=0.7, s=20)
 
-    ax.set_title("Spike frequencies by cell — Strip plot")
+    ax.set_title("Strip (swarm-like)")
     ax.set_ylabel("Spike frequency (Hz)")
     ax.set_xlabel("Cell")
     ax.set_xticks(np.arange(1, len(order) + 1))
     ax.set_xticklabels(order, rotation=45, ha="right")
-    plt.tight_layout()
+
+    if created_fig is not None:
+        plt.tight_layout()
+        plt.show()
+def plot_all_views_grid(all_spikes_df: pd.DataFrame, order_by: str = "mean", sharey: bool = True):
+    """
+    Render all five views in a 1x5 vertical grid by calling the existing
+    plotting functions on provided axes.
+    """
+    _validate_df(all_spikes_df)
+    if order_by not in {"mean", "median"}:
+        raise ValueError("order_by must be 'mean' or 'median'")
+
+    ordered_cells = order_cells(all_spikes_df, by=order_by)
+
+    fig, axes = plt.subplots(5, 1, figsize=(15, 25), constrained_layout=True, sharey=sharey)
+    ax_dash, ax_box, ax_strip, ax_violin, ax_summary = axes
+
+    # Call your existing functions on the axes
+    plot_spike_dashes(all_spikes_df, cell_order=ordered_cells, order_by=order_by, ax=ax_dash)
+    plot_boxplot_spike_freq(all_spikes_df, order=ordered_cells, order_by=order_by, ax=ax_box)
+    plot_strip_spike_freq(all_spikes_df, order=ordered_cells, order_by=order_by, ax=ax_strip)
+    plot_violins_with_stats(all_spikes_df, cell_order=ordered_cells, order_by=order_by, ax=ax_violin)
+    plot_summary_dots(all_spikes_df, cell_order=ordered_cells, order_by=order_by, ax=ax_summary)
+
     plt.show()
+# Optional cleaning step
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def plot_all_views_grid2(all_spikes_df: pd.DataFrame, order_by: str = "mean"):
+    """
+    Show 5 visualizations in a 1x5 vertical grid:
+      [1] Dash view (blue dashes, Mean±SD + Median)
+      [2] Boxplot + jitter
+      [3] Strip (swarm-like)
+      [4] Violin + mean/median
+      [5] Summary dots (mean & median)
+    Cells ordered by ascending mean/median (order_by).
+    """
+    # --------- validate & order ----------
+    if {"cell", "spike_frequency"} - set(all_spikes_df.columns):
+        raise ValueError("DataFrame must have 'cell' and 'spike_frequency' columns")
+    if order_by not in {"mean", "median"}:
+        raise ValueError("order_by must be 'mean' or 'median'")
+
+    d = all_spikes_df.dropna(subset=["spike_frequency"]).copy()
+    agg = (d.groupby("cell")["spike_frequency"]
+             .agg(mean="mean", median="median"))
+    ordered_cells = agg[order_by].sort_values(kind="mergesort").index.tolist()
+
+    # Precompute per-cell arrays
+    data = [d.loc[d["cell"] == c, "spike_frequency"].to_numpy() for c in ordered_cells]
+    positions = np.arange(1, len(ordered_cells) + 1)
+
+    # --------- layout: 5 rows, 1 column ----------
+    fig, axes = plt.subplots(5, 1, figsize=(15, 25), constrained_layout=True)
+    ax_dash, ax_box, ax_strip, ax_violin, ax_summary = axes.ravel()
+
+    # --------- [1] Dash view ----------
+    means, medians, stds = [], [], []
+    for x, arr in zip(positions, data):
+        vals, counts = np.unique(np.round(arr, 10), return_counts=True)
+        for v, cnt in zip(vals, counts):
+            lw = 1.5 + 0.8 * (np.sqrt(cnt) - 1.0)
+            ax_dash.hlines(y=v, xmin=x - 0.35, xmax=x + 0.35,
+                           linewidth=lw, color="tab:blue")
+        means.append(np.nanmean(arr) if arr.size else np.nan)
+        medians.append(np.nanmedian(arr) if arr.size else np.nan)
+        stds.append(np.nanstd(arr, ddof=1) if arr.size > 1 else np.nan)
+
+    ax_dash.errorbar(positions, means, yerr=stds, fmt='o', color="tab:orange",
+                     markersize=4, capsize=4, label="Mean ± SD")
+    ax_dash.scatter(positions, medians, s=40, color="tab:green", label="Median")
+    ax_dash.set_title(f"Dash view (order by {order_by})")
+    ax_dash.set_ylabel("Spike frequency (Hz)")
+    ax_dash.set_xticks(positions)
+    ax_dash.set_xticklabels(ordered_cells, rotation=45, ha="right")
+    ax_dash.legend()
+
+    # --------- [2] Boxplot + jitter ----------
+    bp = ax_box.boxplot(data, positions=positions, widths=0.6, patch_artist=True,
+                        showfliers=False, boxprops=dict(facecolor="lightgray"))
+    for i, arr in enumerate(data, start=1):
+        if arr.size:
+            x_jitter = np.random.normal(loc=i, scale=0.06, size=len(arr))
+            ax_box.scatter(x_jitter, arr, color="tab:blue", alpha=0.6, s=12)
+    ax_box.set_title("Boxplot + jitter")
+    ax_box.set_ylabel("Spike frequency (Hz)")
+    ax_box.set_xticks(positions)
+    ax_box.set_xticklabels(ordered_cells, rotation=45, ha="right")
+
+    # --------- [3] Strip (swarm-like) ----------
+    for i, arr in enumerate(data, start=1):
+        if arr.size:
+            x_jitter = np.random.normal(loc=i, scale=0.10, size=len(arr))
+            ax_strip.scatter(x_jitter, arr, color="tab:blue", alpha=0.8, s=20)
+    ax_strip.set_title("Strip (swarm-like)")
+    ax_strip.set_ylabel("Spike frequency (Hz)")
+    ax_strip.set_xticks(positions)
+    ax_strip.set_xticklabels(ordered_cells, rotation=45, ha="right")
+
+    # --------- [4] Violin + mean/median ----------
+    if len(data) > 0:
+        parts = ax_violin.violinplot(data, positions=positions, showmeans=False,
+                                     showmedians=False, showextrema=False)
+        for pc in parts["bodies"]:
+            pc.set_alpha(0.6)
+    ax_violin.scatter(positions, means, s=40, color="tab:orange", label="Mean")
+    ax_violin.scatter(positions, medians, s=40, color="tab:green", label="Median")
+    ax_violin.set_title("Violin + mean/median")
+    ax_violin.set_ylabel("Spike frequency (Hz)")
+    ax_violin.set_xticks(positions)
+    ax_violin.set_xticklabels(ordered_cells, rotation=45, ha="right")
+    ax_violin.legend()
+
+    # --------- [5] Summary dots ----------
+    ax_summary.scatter(positions, agg.loc[ordered_cells, "mean"].to_numpy(),
+                       s=50, color="tab:orange", label="Mean")
+    ax_summary.scatter(positions, agg.loc[ordered_cells, "median"].to_numpy(),
+                       s=50, color="tab:green", label="Median")
+    ax_summary.set_title("Summary dots")
+    ax_summary.set_ylabel("Spike frequency (Hz)")
+    ax_summary.set_xticks(positions)
+    ax_summary.set_xticklabels(ordered_cells, rotation=45, ha="right")
+    ax_summary.legend()
+
+    plt.show()
+plot_all_views_grid(all_spikes_clean, "mean")
 
 def plot_all_views(all_spikes_df: pd.DataFrame, order_by: str = "mean"):
     """
@@ -691,19 +830,26 @@ def plot_all_views(all_spikes_df: pd.DataFrame, order_by: str = "mean"):
       5) Summary dots (mean & median)
     """
     _validate_df(all_spikes_df)
+
+    if order_by not in {"mean", "median"}:
+        raise ValueError("order_by must be 'mean' or 'median'")
+
+    # Compute one consistent cell order
     ordered_cells = order_cells(all_spikes_df, by=order_by)
 
-    # 1) Dash view
-    plot_spike_dashes(all_spikes_df, cell_order=ordered_cells, order_by=order_by)
+    # 1) Dash view  (expects: df, cell_order)
+    plot_spike_dashes(all_spikes_df, cell_order=ordered_cells)
 
-    # 2) Boxplot + jitter
-    plot_boxplot_spike_freq(all_spikes_df, order=ordered_cells, order_by=order_by)
+    # 2) Boxplot + jitter (expects: df, order=...)
+    plot_boxplot_spike_freq(all_spikes_df, order=ordered_cells)
 
-    # 3) Strip (swarm-like)
-    plot_strip_spike_freq(all_spikes_df, order=ordered_cells, order_by=order_by)
+    # 3) Strip (swarm-like) (expects: df, order=...)
+    plot_strip_spike_freq(all_spikes_df, order=ordered_cells)
 
-    # 4) Violin + stats
-    plot_violins_with_stats(all_spikes_df, cell_order=ordered_cells, order_by=order_by)
+    # 4) Violin + stats (most versions accept cell_order; omit order_by to avoid mismatch)
+    plot_violins_with_stats(all_spikes_df, cell_order=ordered_cells)
 
-    # 5) Summary dots
-    plot_summary_dots(all_spikes_df, cell_order=ordered_cells, order_by=order_by)
+    # 5) Summary dots (most versions accept cell_order)
+    plot_summary_dots(all_spikes_df, cell_order=ordered_cells)
+
+    # Keyword
