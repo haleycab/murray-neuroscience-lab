@@ -33,6 +33,29 @@ def split_cell_attached(sheets: dict[str, pd.DataFrame]):
 
     return matches, non_matches
 
+def split_cell_attached_spiking(sheets: dict[str, pd.DataFrame]):
+    """
+    Splits dictionary of DataFrames into:
+      - matches: sheets with at least one 'Cell-attached' row
+      - non_matches: sheets with no 'Cell-attached' rows
+    """
+    matches = {}
+    non_matches = []
+
+    for name, df in sheets.items():
+        if "Type" not in df.columns:
+            non_matches.append(name)
+            continue
+
+        mask = df["Type"] == "Cell-attached (spiking)"
+
+        if mask.any():
+            matches[name] = df.loc[mask].copy()
+        else:
+            non_matches.append(name)
+
+    return matches, non_matches
+
 import pandas as pd
 
 def filter_cell_attached(sheets: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
@@ -72,179 +95,75 @@ def recalc_freq_cell_attached(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-
 def assign_spike_frequencies_one_df(df: pd.DataFrame) -> pd.DataFrame:
     """
-    For a single DataFrame that may contain multiple Trace names:
-      - Treat rows with Type == 'Cell-attached' as ventral root bursts.
-      - Treat rows with Type == 'Cell-attached (spiking)' as spikes.
-      - Compute burst frequency = 1 / Δt between successive bursts (Seconds).
-      - Compute midpoints between successive bursts.
-      - Define bins by consecutive midpoints; assign each spike to its burst's bin.
-      - Exclude spikes before the first or after the last midpoint.
-      - Return a tidy DataFrame with columns: ['Trace name', 'trace_time', 'spike_frequency', 'burst_index'].
+    Like before, but additionally EXCLUDES spikes assigned to bursts tagged with 'bout start'.
     """
     out_rows = []
 
-    # Work trace-by-trace so bursts/spikes are matched within the same recording
     for trace_name, g in df.groupby("Trace name", dropna=False):
-        # Bursts (ventral root)
-        bursts = g[g["Type"] == "Cell-attached"].copy()
-        bursts = bursts.sort_values("Seconds")
+        # Bursts (ventral root) and spikes
+        bursts = g[g["Type"] == "Cell-attached"].copy().sort_values("Seconds")
+        spikes = g[g["Type"] == "Cell-attached (spiking)"].copy().sort_values("Seconds")
 
-        # Spikes
-        spikes = g[g["Type"] == "Cell-attached (spiking)"].copy()
-        spikes = spikes.sort_values("Seconds")
-
-        # If we don't have at least 2 bursts, we can't define midpoints/bins
         if len(bursts) < 2 or spikes.empty:
             continue
 
         t_burst = bursts["Seconds"].to_numpy()
 
-        # (1) Frequency per burst: 1 / Δt, aligned to the *later* burst in each pair.
-        # First burst has no preceding Δt -> NaN
+        # Frequencies aligned to later burst
         freqs = np.empty(len(t_burst), dtype=float)
         freqs[:] = np.nan
         dt = np.diff(t_burst)
-        # Avoid division by zero
         with np.errstate(divide="ignore", invalid="ignore"):
             freqs[1:] = 1.0 / dt
 
-        # (2) Midpoints between successive bursts (length = len(bursts)-1)
+        # Midpoints & bins
         midpoints = (t_burst[:-1] + t_burst[1:]) / 2.0
-
-        # (3) Bins: consecutive midpoints bound each burst's domain.
-        # We’ll digitize spikes against [-inf, m1, m2, ..., m_{K}, +inf],
-        # then exclude those in bin 1 (before first midpoint) and bin K+1 (after last).
         bins = np.concatenate(([-np.inf], midpoints, [np.inf]))
 
-        # (4) Assign spikes to bins
+        # Assign spikes to bins (maps to later burst i)
         s_times = spikes["Seconds"].to_numpy()
-        # digitize with right-closed intervals (m_{i-1}, m_i]
-        bin_idx = np.digitize(s_times, bins, right=True)  # returns 1..K+1
-
-        # Keep only spikes strictly between first and last midpoint
-        # i.e., bin indices 2..K, where K = len(midpoints)
+        bin_idx = np.digitize(s_times, bins, right=True)  # 1..K+1
         K = len(midpoints)
+
+        # keep only spikes strictly between first/last midpoint
         valid_mask = (bin_idx >= 2) & (bin_idx <= K)
         if not valid_mask.any():
             continue
 
         s_times_valid = s_times[valid_mask]
-        burst_indices = bin_idx[valid_mask]  # this corresponds to burst i
+        burst_indices = bin_idx[valid_mask]  # burst i (later burst), 2..K
 
-        # Map each spike to the frequency of its corresponding burst
-        # freqs[i-1] is the frequency assigned to burst i (note: freqs[0] is NaN as intended)
+        # ---- NEW: drop spikes whose associated later-burst is tagged 'bout start' ----
+        if "Tags" in bursts.columns:
+            burst_tags = bursts["Tags"].astype(str)
+            is_bout_start = burst_tags.str.contains("bout start", case=False, na=False).to_numpy()
+            # burst_indices are 1-based positions into 'freqs'/'bursts'; convert to 0-based
+            keep_mask = ~is_bout_start[burst_indices - 1]
+        else:
+            keep_mask = np.ones_like(burst_indices, dtype=bool)
+
+        if not keep_mask.any():
+            continue
+
+        s_times_valid = s_times_valid[keep_mask]
+        burst_indices = burst_indices[keep_mask]
+
+        # Map to frequencies
         assigned_freqs = freqs[burst_indices - 1]
 
-        # Build output rows
         out_rows.append(pd.DataFrame({
             "Trace name": trace_name,
-            "trace_time": s_times_valid,       # spike 'Seconds'
-            "spike_frequency": assigned_freqs, # Hz
-            "burst_index": burst_indices       # which burst the spike was assigned to
+            "trace_time": s_times_valid,
+            "spike_frequency": assigned_freqs,
+            "burst_index": burst_indices
         }))
 
     if out_rows:
         return pd.concat(out_rows, ignore_index=True)
     else:
-        # No assignable spikes found under the rules
         return pd.DataFrame(columns=["Trace name", "trace_time", "spike_frequency", "burst_index"])
-
-
-def assign_spike_frequencies_for_dict(sheets: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """
-    Apply the assignment to each sheet (DataFrame) in a dict.
-    Returns a dict: sheet_name -> tidy result DataFrame
-    """
-    results = {}
-    for name, df in sheets.items():
-        if not isinstance(df, pd.DataFrame) or df.empty:
-            continue
-        results[name] = assign_spike_frequencies_one_df(df)
-    return results
-
-
-def assign_spike_frequencies_one_df(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    For a single DataFrame that may contain multiple Trace names:
-      - Treat rows with Type == 'Cell-attached' as ventral root bursts.
-      - Treat rows with Type == 'Cell-attached (spiking)' as spikes.
-      - Compute burst frequency = 1 / Δt between successive bursts (Seconds).
-      - Compute midpoints between successive bursts.
-      - Define bins by consecutive midpoints; assign each spike to its burst's bin.
-      - Exclude spikes before the first or after the last midpoint.
-      - Return a tidy DataFrame with columns: ['Trace name', 'trace_time', 'spike_frequency', 'burst_index'].
-    """
-    out_rows = []
-
-    # Work trace-by-trace so bursts/spikes are matched within the same recording
-    for trace_name, g in df.groupby("Trace name", dropna=False):
-        # Bursts (ventral root)
-        bursts = g[g["Type"] == "Cell-attached"].copy()
-        bursts = bursts.sort_values("Seconds")
-
-        # Spikes
-        spikes = g[g["Type"] == "Cell-attached (spiking)"].copy()
-        spikes = spikes.sort_values("Seconds")
-
-        # If we don't have at least 2 bursts, we can't define midpoints/bins
-        if len(bursts) < 2 or spikes.empty:
-            continue
-
-        t_burst = bursts["Seconds"].to_numpy()
-
-        # (1) Frequency per burst: 1 / Δt, aligned to the *later* burst in each pair.
-        # First burst has no preceding Δt -> NaN
-        freqs = np.empty(len(t_burst), dtype=float)
-        freqs[:] = np.nan
-        dt = np.diff(t_burst)
-        # Avoid division by zero
-        with np.errstate(divide="ignore", invalid="ignore"):
-            freqs[1:] = 1.0 / dt
-
-        # (2) Midpoints between successive bursts (length = len(bursts)-1)
-        midpoints = (t_burst[:-1] + t_burst[1:]) / 2.0
-
-        # (3) Bins: consecutive midpoints bound each burst's domain.
-        # We’ll digitize spikes against [-inf, m1, m2, ..., m_{K}, +inf],
-        # then exclude those in bin 1 (before first midpoint) and bin K+1 (after last).
-        bins = np.concatenate(([-np.inf], midpoints, [np.inf]))
-
-        # (4) Assign spikes to bins
-        s_times = spikes["Seconds"].to_numpy()
-        # digitize with right-closed intervals (m_{i-1}, m_i]
-        bin_idx = np.digitize(s_times, bins, right=True)  # returns 1..K+1
-
-        # Keep only spikes strictly between first and last midpoint
-        # i.e., bin indices 2..K, where K = len(midpoints)
-        K = len(midpoints)
-        valid_mask = (bin_idx >= 2) & (bin_idx <= K)
-        if not valid_mask.any():
-            continue
-
-        s_times_valid = s_times[valid_mask]
-        burst_indices = bin_idx[valid_mask]  # this corresponds to burst i
-
-        # Map each spike to the frequency of its corresponding burst
-        # freqs[i-1] is the frequency assigned to burst i (note: freqs[0] is NaN as intended)
-        assigned_freqs = freqs[burst_indices - 1]
-
-        # Build output rows
-        out_rows.append(pd.DataFrame({
-            "Trace name": trace_name,
-            "trace_time": s_times_valid,       # spike 'Seconds'
-            "spike_frequency": assigned_freqs, # Hz
-            "burst_index": burst_indices       # which burst the spike was assigned to
-        }))
-
-    if out_rows:
-        return pd.concat(out_rows, ignore_index=True)
-    else:
-        # No assignable spikes found under the rules
-        return pd.DataFrame(columns=["Trace name", "trace_time", "spike_frequency", "burst_index"])
-
 
 def assign_spike_frequencies_for_dict(sheets: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     """
@@ -278,9 +197,6 @@ def combine_spike_dict(spike_dict: dict[str, pd.DataFrame]) -> pd.DataFrame:
     else:
         return pd.DataFrame(columns=["Trace name", "trace_time", "spike_frequency", "burst_index", "cell"])
     
-    import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 
 def _burst_frequencies(burst_times: np.ndarray) -> np.ndarray:
     """Frequency per burst (Hz), aligned to the later burst; first is NaN."""
@@ -327,6 +243,7 @@ def _first5_window(burst_times: np.ndarray):
     idx_end = min(4, len(burst_times)-1)  # 0-based; burst #5 is index 4
     x_end = burst_times[idx_end]
     return x_start, x_end
+
 def plot_sheet_first5_bursts(sheet_df: pd.DataFrame, title_prefix: str | None = None):
     """
     Make a 1x2 plot (up to 2 traces) for a single sheet DataFrame.
@@ -457,6 +374,8 @@ def plot_sheet_first5_bursts(sheet_df: pd.DataFrame, title_prefix: str | None = 
             ax.set_ylim(*global_ylim)
 
     plt.show()
+
+
 def clean_spikes_dataframe(df: pd.DataFrame, min_freq: float = 15) -> pd.DataFrame:
     """
     Clean the all_spikes DataFrame by dropping rows where spike_frequency is below min_freq.
@@ -818,7 +737,6 @@ def plot_all_views_grid2(all_spikes_df: pd.DataFrame, order_by: str = "mean"):
     ax_summary.legend()
 
     plt.show()
-plot_all_views_grid(all_spikes_clean, "mean")
 
 def plot_all_views(all_spikes_df: pd.DataFrame, order_by: str = "mean"):
     """
@@ -853,3 +771,61 @@ def plot_all_views(all_spikes_df: pd.DataFrame, order_by: str = "mean"):
     plot_summary_dots(all_spikes_df, cell_order=ordered_cells)
 
     # Keyword
+
+import pandas as pd
+import numpy as np
+
+def summarize_spike_stats(
+    all_spikes: pd.DataFrame,
+    cell_col: str = "cell",
+    freq_col: str = "spike_frequency",
+    dropna: bool = True,
+    round_decimals: int | None = None,
+) -> pd.DataFrame:
+    """
+    Summarize spike frequencies per cell.
+
+    Parameters
+    ----------
+    all_spikes : DataFrame with at least [cell_col, freq_col]
+    cell_col   : column name for cell IDs (default 'cell')
+    freq_col   : column name for spike frequency (Hz) (default 'spike_frequency')
+    dropna     : if True, drop rows with NaN freq before aggregating
+    round_decimals : optional int to round numeric outputs
+
+    Returns
+    -------
+    DataFrame with columns:
+      ['cell', 'mean_spike_frequency', 'median_spike_frequency',
+       'min_spike_frequency', 'max_spike_frequency', 'total_spikes']
+    """
+    required = {cell_col, freq_col}
+    missing = required - set(all_spikes.columns)
+    if missing:
+        raise ValueError(f"Input DataFrame missing required columns: {missing}")
+
+    df = all_spikes[[cell_col, freq_col]].copy()
+    # ensure numeric freq; coerce bad strings to NaN
+    df[freq_col] = pd.to_numeric(df[freq_col], errors="coerce")
+    if dropna:
+        df = df.dropna(subset=[freq_col])
+
+    out = (
+        df.groupby(cell_col)[freq_col]
+          .agg(
+              mean_spike_frequency="mean",
+              median_spike_frequency="median",
+              min_spike_frequency="min",
+              max_spike_frequency="max",
+              total_spikes="count",   # counts non-NaN
+          )
+          .reset_index()
+          .rename(columns={cell_col: "cell"})
+    )
+
+    if round_decimals is not None:
+        num_cols = ["mean_spike_frequency", "median_spike_frequency",
+                    "min_spike_frequency", "max_spike_frequency"]
+        out[num_cols] = out[num_cols].round(round_decimals)
+
+    return out
