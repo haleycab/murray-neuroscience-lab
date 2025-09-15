@@ -8,9 +8,8 @@ import os
 parent_folder_path = "/Users/Haley/Desktop/" # work on local computer
 
 # Get sheets
-cell_types_df = pd.read_csv(parent_folder_path+"murray-neuroscience-lab/Excel processor/List of cells.csv")
-cell_types_df = cell_types_df.dropna(how='all')
-cell_types_df = cell_types_df.iloc[:,:4]
+cell_types_df = pd.read_csv(parent_folder_path+"murray-neuroscience-lab/Cleaned, updated files from Spring/summary_spikes.csv")
+
 cell_types_df.reset_index(drop=True,inplace=True)
 sheets_types = cell_types_df["Cell"].unique().tolist()
 
@@ -25,13 +24,9 @@ def make_sheets_dict(sheet_names,parent_folder_path):
         file_path = parent_folder_path+"murray-neuroscience-lab/New processed excels/"+sheet+".csv"
         df = pd.read_csv(file_path)
         df[["Trace name","Tags","Type"]] = df[["Trace name","Tags","Type"]].astype("string")
-        if sheet in sheets_types:
-            types = cell_types_df[cell_types_df["Cell"]==sheet]
-            if not df.empty:
-                df.loc[:,"Cell Type"] = types.iloc[0]["Cell Type"]
-                df.loc[:,"Input Resistance"] = types.iloc[0]["Input Resistance"]
-                df.loc[:,"Motoneuron"] = types.iloc[0]["Motoneuron"]
-                df.loc[:,"Motoneuron"] = types.iloc[0]["Motoneuron"]
+        types = cell_types_df[cell_types_df["Cell"]==sheet]
+        df.loc[:,"Median Spiking"] = types.iloc[0]["median"]
+        df.loc[:,"Mean Spiking"] = types.iloc[0]["mean"]
         sheets[sheet] = df
 
     return sheets
@@ -128,9 +123,9 @@ def make_waveforms(abf, df):
         # Dict keys
         freq = 1 / (t_f - t_0)
         signal_type = df.iloc[i]["Type"]
-        cell_type = df.iloc[i]["Cell Type"]
-        fast_slow = df.iloc[i]["Motoneuron"]
-        key = (freq, signal_type, cell_type, fast_slow)
+        median = df.iloc[i]["Median Spiking"]
+        mean = df.iloc[i]["Mean Spiking"]
+        key = (freq, signal_type, median, mean)
 
         waveforms[key] = abf_waveform
 
