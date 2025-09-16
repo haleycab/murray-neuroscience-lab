@@ -170,3 +170,40 @@ def bin_wave(onewave):
     binned_avg['Phase'] = bin_centers
     return binned_avg
 
+def bin_wave_100(onewave):
+    """
+    Bins the 'Phase' column into 100 equal-width bins between 0 and 1,
+    computes the mean of 'Current' and 'Normalized Current' within each bin,
+    and returns a DataFrame with bin intervals, averages, and numeric bin centers.
+    """
+    # Create 100 bins between 0 and 1
+    bins = np.linspace(0, 1, 101, endpoint=True)
+
+    # Assign each Phase value to a bin
+    onewave['Phase Bin'] = pd.cut(onewave['Phase'], bins=bins, include_lowest=True)
+
+    # Compute mean Current and Normalized Current for each bin
+    binned_avg = (
+        onewave.groupby('Phase Bin', observed=True)[['Current', 'Normalized Current']]
+        .mean()
+        .reset_index()
+    )
+
+    # Add numeric bin centers
+    binned_avg['Phase'] = binned_avg['Phase Bin'].apply(lambda x: x.mid)
+
+    return binned_avg
+
+
+def recenter_phase(df, col="Phase"):
+    """
+    Take a DataFrame with a Phase column in [0, 1] and remap to [-0.5, 0.5].
+
+    - Values < 0.5 stay the same.
+    - Values >= 0.5 are shifted by -1.
+    """
+    df = df.copy()
+    phases = df[col].to_numpy()
+    phases = np.where(phases >= 0.5, phases - 1.0, phases)
+    df[col] = phases
+    return df
