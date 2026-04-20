@@ -19,6 +19,13 @@ except ImportError:
     from utils import DEFAULT_PARENT_PATH, concat_one_channel
 
 
+LEGACY_SPRING_DIR = os.path.join(
+    DEFAULT_PARENT_PATH,
+    "murray-neuroscience-lab",
+    "Cleaned, updated files from Spring",
+)
+
+
 def make_sheets_dict(sheet_names, parent_folder_path=DEFAULT_PARENT_PATH, 
                      cell_types_df=None):
     """
@@ -115,9 +122,11 @@ def add_abfs(sheets, abfs_names, parent_folder_path_ABFS):
     return sheets
 
 
-def make_waveforms(abf, df, remove_outliers=False, iqr_multiplier=1.5):
+def make_waveforms(abf, df):
     """
-    Extract waveforms from ABF file based on annotation timing.
+    Function that takes an ABF file and a DataFrame of annotations.
+    Returns a dictionary with waveforms labeled by
+    (frequency, signal_type, median_spiking, mean_spiking).
     
     Parameters:
     -----------
@@ -125,78 +134,45 @@ def make_waveforms(abf, df, remove_outliers=False, iqr_multiplier=1.5):
         ABF file object
     df : DataFrame
         Annotations with timing information
-    remove_outliers : bool
-        Whether to remove outliers using IQR method
-    iqr_multiplier : float
-        Multiplier for IQR outlier detection
-    
-    Returns:
-    --------
-    waveforms : dict
-        Dictionary with keys (freq, signal_type, median, mean) and values
-        as DataFrames with columns: Time, Current, Phase, Normalized Current
+    The implementation below is intentionally aligned with the most recent
+    legacy notebook function `new_make_waveforms`.
     """
-    # Use optimized concat function to get full trace once
-    full_time, full_current = concat_one_channel(abf, ch=0)
+    currents_ch = df.loc[0, "Currents Channel"] if "Currents Channel" in df.columns else 0
+    full_time, full_current = concat_one_channel(abf, ch=currents_ch)
+    abf_df = pd.DataFrame({"Time": full_time, "Current": full_current})
 
-    # Ensure Seconds column exists
-    if "Seconds" not in df.columns:
+    if "Midpoint" not in df.columns and "Seconds" not in df.columns:
         df["Seconds"] = pd.to_numeric(df["On time"], errors="coerce") * 0.001
 
     waveforms = {}
-    
+
     for i in range(len(df) - 1):
-        t_0 = df.iloc[i]["Seconds"]
-        t_f = df.iloc[i + 1]["Seconds"]
+        if "Midpoint" in df.columns:
+            t_0 = df.iloc[i]["Midpoint"]
+            t_f = df.iloc[i + 1]["Midpoint"]
+            phase_shift = -0.5
+        else:
+            t_0 = df.iloc[i]["Seconds"]
+            t_f = df.iloc[i + 1]["Seconds"]
+            phase_shift = 0.0
 
-        # Use numpy indexing for speed - much faster than DataFrame filtering
-        mask = (full_time >= t_0) & (full_time <= t_f)
-        time_segment = full_time[mask]
-        current_segment = full_current[mask]
-        
-        if len(time_segment) == 0:
-            continue
-        
-        # Create DataFrame only for the extracted segment
-        abf_waveform = pd.DataFrame({
-            'Time': time_segment,
-            'Current': current_segment
-        })
-        
+        abf_waveform = abf_df[(abf_df["Time"] >= t_0) & (abf_df["Time"] <= t_f)].copy()
+
         if abf_waveform.empty:
-            print(f"Warning: Empty waveform at index {i}, t_0={t_0}, t_f={t_f}")
-            continue
-        
-        # Optional: Remove outliers (IQR method)
-        if remove_outliers:
-            Q1 = abf_waveform["Current"].quantile(0.25)
-            Q3 = abf_waveform["Current"].quantile(0.75)
-            IQR = Q3 - Q1
-            lower = Q1 - iqr_multiplier * IQR
-            upper = Q3 + iqr_multiplier * IQR
-            abf_waveform = abf_waveform[
-                (abf_waveform["Current"] >= lower) & 
-                (abf_waveform["Current"] <= upper)
-            ]
-            
-            if abf_waveform.empty:
-                continue
+            raise ValueError(
+                f"abf_waveform is empty for index {i}, t_0={t_0}, t_f={t_f}, Trace name={df.iloc[i].get('Trace name', 'Unknown')}"
+            )
 
-        # Add phase (0 to 1 across the segment)
-        abf_waveform["Phase"] = (abf_waveform["Time"] - t_0) / (t_f - t_0)
+        # Add phase (legacy midpoint behavior: -0.5 to 0.5)
+        abf_waveform["Phase"] = ((abf_waveform["Time"] - t_0) / (t_f - t_0)) + phase_shift
 
         # Normalize Current
         y_max = abf_waveform["Current"].max()
         y_min = abf_waveform["Current"].min()
-        if y_max != y_min:
-            abf_waveform["Normalized Current"] = (
-                (abf_waveform["Current"] - y_min) / (y_max - y_min)
-            )
-        else:
-            abf_waveform["Normalized Current"] = 0.5
+        abf_waveform["Normalized Current"] = (abf_waveform["Current"] - y_min) / (y_max - y_min)
 
         # Create dictionary key
-        freq = 1 / (t_f - t_0) if t_f != t_0 else 0
+        freq = 1 / (t_f - t_0)
         signal_type = df.iloc[i].get("Type", "Unknown")
         median = df.iloc[i].get("Median Spiking", np.nan)
         mean = df.iloc[i].get("Mean Spiking", np.nan)
@@ -207,7 +183,99 @@ def make_waveforms(abf, df, remove_outliers=False, iqr_multiplier=1.5):
     return waveforms
 
 
-def sheets_to_waveforms(sheets):
+def get_abf_and_annotations(abf_name, sheets_abfs):
+    """
+    Given an abf_name, return the ABF object and its corresponding
+    annotations DataFrame subset.
+    """
+    for _, content in sheets_abfs.items():
+        if abf_name in content["abfs"]:
+            abf_obj = content["abfs"][abf_name]
+            annotations_df = content["annotations"]
+            annotations_subset = annotations_df[annotations_df["Trace name"] == abf_name]
+            return abf_obj, annotations_subset
+    return None, None
+
+
+def calculate_midpoints_and_frequencies_avg(all_annotations_in):
+    """
+    Legacy midpoint logic used by the newest notebooks that call
+    `new_make_waveforms`.
+    """
+    all_annotations = all_annotations_in.copy().reset_index(drop=True)
+    all_annotations["Midpoint"] = np.nan
+    all_annotations["Freq_Blackdots"] = np.nan
+    all_annotations["Freq_Midpoints"] = np.nan
+
+    for i in range(len(all_annotations)):
+        is_start = str(all_annotations.loc[i, "AnnotationType"]).lower() == "start"
+        prev_is_start = (i > 0) and (
+            str(all_annotations.loc[i - 1, "AnnotationType"]).lower() == "start"
+        )
+
+        if is_start or prev_is_start:
+            center_i = all_annotations.loc[i, "BlackDotTime"]
+        else:
+            center_i = np.nanmean([
+                all_annotations.loc[i, "BlackDotTime"],
+                all_annotations.loc[i, "FirstLastMidpointTime"],
+            ])
+
+        if i + 1 == len(all_annotations):
+            if i > 0:
+                half_interval = center_i - all_annotations.loc[i - 1, "Midpoint"]
+                midpoint = center_i + half_interval
+                all_annotations.loc[i, "Midpoint"] = midpoint
+        else:
+            next_is_start = str(all_annotations.loc[i + 1, "AnnotationType"]).lower() == "start"
+            if is_start or next_is_start:
+                center_ip1 = all_annotations.loc[i + 1, "BlackDotTime"]
+            else:
+                center_ip1 = np.nanmean([
+                    all_annotations.loc[i + 1, "BlackDotTime"],
+                    all_annotations.loc[i + 1, "FirstLastMidpointTime"],
+                ])
+
+            interval = center_ip1 - center_i
+            all_annotations.loc[i + 1, "Freq_Blackdots"] = 1 / interval
+            midpoint = center_i + interval / 2
+            all_annotations.loc[i, "Midpoint"] = midpoint
+
+        if i == 0:
+            all_annotations.loc[i, "Freq_Midpoints"] = np.nan
+            all_annotations.loc[i, "Freq_Blackdots"] = np.nan
+        else:
+            interval_midpoints = (
+                all_annotations.loc[i, "Midpoint"] - all_annotations.loc[i - 1, "Midpoint"]
+            )
+            all_annotations.loc[i, "Freq_Midpoints"] = 1 / interval_midpoints
+
+    return all_annotations
+
+
+def load_legacy_merged_annotations(parent_folder_path=DEFAULT_PARENT_PATH):
+    """
+    Load variance-based annotations calculated using variance binning strategy.
+    
+    This function loads all_vrb_annotationsnoNaNs.csv which contains BlackDotTime
+    values calculated from the variance binning detection method. No merging with
+    Chebyshev annotations is performed - only the variance-based annotations are used.
+    """
+    spring_dir = os.path.join(
+        parent_folder_path,
+        "murray-neuroscience-lab",
+        "Cleaned, updated files from Spring",
+    )
+    variance_path = os.path.join(spring_dir, "all_vrb_annotationsnoNaNs.csv")
+    
+    # Load only the variance-based annotations
+    merged = pd.read_csv(variance_path)
+    
+    return merged
+
+
+def sheets_to_waveforms(sheets, merged_annotations=None, use_legacy_new_make_waveforms=True,
+                        parent_folder_path=DEFAULT_PARENT_PATH):
     """
     Extract waveforms from all sheets.
     
@@ -219,8 +287,34 @@ def sheets_to_waveforms(sheets):
     Returns:
     --------
     all_waveforms : dict
-        Nested dictionary {sheet_name: {trace_name: waveforms_dict}}
+        If `use_legacy_new_make_waveforms=True`, returns the same flat dictionary
+        structure produced by the newest legacy notebooks that use
+        `new_make_waveforms`. Otherwise returns the original nested refactor
+        structure.
     """
+    if use_legacy_new_make_waveforms:
+        if merged_annotations is None:
+            merged_annotations = load_legacy_merged_annotations(
+                parent_folder_path=parent_folder_path
+            )
+
+        all_waveforms = {}
+        abf_names = merged_annotations["Trace name"].unique()
+
+        for abf_name in abf_names:
+            abf, _ = get_abf_and_annotations(abf_name, sheets)
+            if abf is None:
+                continue
+
+            annotations = merged_annotations[merged_annotations["Trace name"] == abf_name]
+            annotations = calculate_midpoints_and_frequencies_avg(annotations)
+            waveforms = make_waveforms(abf, annotations)
+
+            for key, value in waveforms.items():
+                all_waveforms[key] = value
+
+        return all_waveforms
+
     all_waveforms = {}
     total_sheets = len(sheets)
     
@@ -257,7 +351,8 @@ def sheets_to_waveforms(sheets):
 
 def bin_wave(onewave, num_bins=100):
     """
-    Bin a waveform into equal phase bins and average within bins.
+    Bin waveform phase and average Current and Normalized Current in each bin.
+    This mirrors legacy `bin_wave_100` behavior from the most recent notebooks.
     
     Parameters:
     -----------
@@ -271,12 +366,15 @@ def bin_wave(onewave, num_bins=100):
     binned_df : DataFrame
         Binned waveform with columns: Phase, Normalized Current
     """
-    bins = np.linspace(0, 1, num_bins + 1)
-    onewave['Bin'] = pd.cut(onewave['Phase'], bins=bins, labels=False, include_lowest=True)
-    
-    binned = onewave.groupby('Bin').agg({
-        'Phase': 'mean',
-        'Normalized Current': 'mean'
-    }).reset_index(drop=True)
-    
-    return binned
+    bins = np.linspace(-0.5, 0.5, num_bins + 1, endpoint=True)
+    onewave = onewave.copy()
+    onewave['Phase Bin'] = pd.cut(onewave['Phase'], bins=bins, include_lowest=True)
+
+    binned_avg = (
+        onewave.groupby('Phase Bin', observed=True)[['Current', 'Normalized Current']]
+        .mean()
+        .reset_index()
+    )
+
+    binned_avg['Phase'] = binned_avg['Phase Bin'].apply(lambda x: x.mid)
+    return binned_avg
