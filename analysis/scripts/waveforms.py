@@ -197,10 +197,46 @@ def get_abf_and_annotations(abf_name, sheets_abfs):
     return None, None
 
 
-def calculate_midpoints_and_frequencies_avg(all_annotations_in):
+def calculate_midpoints_and_frequencies_blackdot_legacy_style(all_annotations_in):
     """
-    Legacy midpoint logic used by the newest notebooks that call
-    `new_make_waveforms`.
+    Version A (legacy-style structure):
+    Keeps the original notebook control flow and debug prints, but uses only
+    BlackDotTime as the center for all calculations.
+    """
+    all_annotations = all_annotations_in.copy().reset_index(drop=True)
+    for i in range(len(all_annotations)):
+        center_i = all_annotations.loc[i, "BlackDotTime"]
+
+        if i + 1 == len(all_annotations):
+            half_interval = center_i - all_annotations.loc[i - 1, "Midpoint"]
+            midpoint = center_i + half_interval
+            all_annotations.loc[i, "Midpoint"] = midpoint
+            print(half_interval)
+            print("last midpoint", midpoint)
+            print("last center", center_i)
+            print("prev mid", all_annotations.loc[i - 1, "Midpoint"])
+        else:
+            center_ip1 = all_annotations.loc[i + 1, "BlackDotTime"]
+            interval = center_ip1 - center_i
+            all_annotations.loc[i + 1, "Freq_Blackdots"] = 1 / interval
+            midpoint = center_i + interval / 2
+            all_annotations.loc[i, "Midpoint"] = midpoint
+
+        if i == 0:
+            all_annotations.loc[i, "Freq_Midpoints"] = np.nan
+            all_annotations.loc[i, "Freq_Blackdots"] = np.nan
+        else:
+            interval_midpoints = all_annotations.loc[i, "Midpoint"] - all_annotations.loc[i - 1, "Midpoint"]
+            all_annotations.loc[i, "Freq_Midpoints"] = 1 / interval_midpoints
+
+    return all_annotations
+
+
+def calculate_midpoints_and_frequencies_blackdot_refactor_style(all_annotations_in):
+    """
+    Version B (refactor-style structure):
+    Cleaner defensive implementation that initializes required columns and uses
+    only BlackDotTime as the center for all calculations.
     """
     all_annotations = all_annotations_in.copy().reset_index(drop=True)
     all_annotations["Midpoint"] = np.nan
@@ -208,18 +244,7 @@ def calculate_midpoints_and_frequencies_avg(all_annotations_in):
     all_annotations["Freq_Midpoints"] = np.nan
 
     for i in range(len(all_annotations)):
-        is_start = str(all_annotations.loc[i, "AnnotationType"]).lower() == "start"
-        prev_is_start = (i > 0) and (
-            str(all_annotations.loc[i - 1, "AnnotationType"]).lower() == "start"
-        )
-
-        if is_start or prev_is_start:
-            center_i = all_annotations.loc[i, "BlackDotTime"]
-        else:
-            center_i = np.nanmean([
-                all_annotations.loc[i, "BlackDotTime"],
-                all_annotations.loc[i, "FirstLastMidpointTime"],
-            ])
+        center_i = all_annotations.loc[i, "BlackDotTime"]
 
         if i + 1 == len(all_annotations):
             if i > 0:
@@ -227,15 +252,7 @@ def calculate_midpoints_and_frequencies_avg(all_annotations_in):
                 midpoint = center_i + half_interval
                 all_annotations.loc[i, "Midpoint"] = midpoint
         else:
-            next_is_start = str(all_annotations.loc[i + 1, "AnnotationType"]).lower() == "start"
-            if is_start or next_is_start:
-                center_ip1 = all_annotations.loc[i + 1, "BlackDotTime"]
-            else:
-                center_ip1 = np.nanmean([
-                    all_annotations.loc[i + 1, "BlackDotTime"],
-                    all_annotations.loc[i + 1, "FirstLastMidpointTime"],
-                ])
-
+            center_ip1 = all_annotations.loc[i + 1, "BlackDotTime"]
             interval = center_ip1 - center_i
             all_annotations.loc[i + 1, "Freq_Blackdots"] = 1 / interval
             midpoint = center_i + interval / 2
@@ -251,6 +268,14 @@ def calculate_midpoints_and_frequencies_avg(all_annotations_in):
             all_annotations.loc[i, "Freq_Midpoints"] = 1 / interval_midpoints
 
     return all_annotations
+
+
+def calculate_midpoints_and_frequencies_avg(all_annotations_in):
+    """
+    Backward-compatible alias used by pipeline code.
+    Defaults to the legacy-style blackdot-only behavior.
+    """
+    return calculate_midpoints_and_frequencies_blackdot_legacy_style(all_annotations_in)
 
 
 def load_legacy_merged_annotations(parent_folder_path=DEFAULT_PARENT_PATH):
