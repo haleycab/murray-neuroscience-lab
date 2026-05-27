@@ -1,0 +1,112 @@
+Trace name,ID,On time,Freq,Tags,Type,Seconds
+2013_03_22_0027,1,17513.43,,bout start; spontaneous,Excitatory (Rs compensation),17.51343
+2013_03_22_0027,2,17541.07,36.1795,,Excitatory (Rs compensation),17.54107
+2013_03_22_0027,3,17572.62,31.6957,,Excitatory (Rs compensation),17.57262
+2013_03_22_0027,4,17610.63,26.3089,,Excitatory (Rs compensation),17.61063
+2013_03_22_0027,5,17648.27,26.5675,,Excitatory (Rs compensation),17.64827
+2013_03_22_0027,6,17678.85,32.7011,,Excitatory (Rs compensation),17.67885
+2013_03_22_0027,7,17711.3,30.8166,bout end,Excitatory (Rs compensation),17.7113
+2013_03_22_0027,8,18119.23,2.4514,bout start; spontaneous,Excitatory (Rs compensation),18.119229999999998
+2013_03_22_0027,9,18147.64,35.1989,,Excitatory (Rs compensation),18.14764
+2013_03_22_0027,10,18175.84,35.461,,Excitatory (Rs compensation),18.17584
+2013_03_22_0027,11,18206.5,32.6158,,Excitatory (Rs compensation),18.206500000000002
+2013_03_22_0027,12,18235.56,34.4116,,Excitatory (Rs compensation),18.235560000000003
+2013_03_22_0027,13,18265.47,33.4336,,Excitatory (Rs compensation),18.26547
+2013_03_22_0027,14,18296.17,32.5733,,Excitatory (Rs compensation),18.29617
+2013_03_22_0027,15,18328.17,31.25,bout,Excitatory (Rs compensation),18.32817
+2013_03_22_0027,16,18699.26,2.6948,bout start; spontaneous,Excitatory (Rs compensation),18.69926
+2013_03_22_0027,17,18729.99,32.5415,,Excitatory (Rs compensation),18.72999
+2013_03_22_0027,18,18757.81,35.9454,,Excitatory (Rs compensation),18.757810000000003
+2013_03_22_0027,19,18781.83,41.632,,Excitatory (Rs compensation),18.781830000000003
+2013_03_22_0027,20,18813.15,31.9285,,Excitatory (Rs compensation),18.81315
+2013_03_22_0027,21,18842.62,33.9328,,Excitatory (Rs compensation),18.84262
+2013_03_22_0027,22,18872.48,33.4896,bout end,Excitatory (Rs compensation),18.87248
+2013_03_22_0027,23,19184.21,3.2079,bout start; spontaneous,Excitatory (Rs compensation),19.18421
+2013_03_22_0027,24,19211.74,36.324,,Excitatory (Rs compensation),19.211740000000002
+2013_03_22_0027,25,19237.85,38.2995,,Excitatory (Rs compensation),19.237849999999998
+2013_03_22_0027,26,19264.19,37.9651,,Excitatory (Rs compensation),19.26419
+2013_03_22_0027,27,19290.6,37.8644,,Excitatory (Rs compensation),19.290599999999998
+2013_03_22_0027,28,19322.57,31.2793,,Excitatory (Rs compensation),19.32257
+2013_03_22_0027,29,19353.21,32.6371,,Excitatory (Rs compensation),19.35321
+2013_03_22_0027,30,19384.83,31.6256,,Excitatory (Rs compensation),19.38483
+2013_03_22_0027,31,19417.24,30.8547,bout end,Excitatory (Rs compensation),19.417240000000003
+2013_03_22_0027,32,19882.82,2.1479,bout start; spontaneous,Excitatory (Rs compensation),19.88282
+2013_03_22_0027,33,19909.38,37.6506,,Excitatory (Rs compensation),19.909380000000002
+2013_03_22_0027,34,19936.49,36.8868,bout end,Excitatory (Rs compensation),19.936490000000003
+2013_03_22_0027,35,19992.06,17.9953,bout start; spontaneous,Excitatory (Rs compensation),19.992060000000002
+2013_03_22_0027,36,20022.12,33.2668,,Excitatory (Rs compensation),20.02212
+2013_03_22_0027,37,20054.51,30.8737,,Excitatory (Rs compensation),20.05451
+2013_03_22_0027,38,20086.35,31.407,,Excitatory (Rs compensation),20.08635
+2013_03_22_0027,39,20119.17,30.4692,bout end,Excitatory (Rs compensation),20.11917
+2013_03_22_0028,1,10055.77,,bout start; spontaneous,Excitatory (Rs compensation),10.05577
+2013_03_22_0028,2,10072.05,61.4251,,Excitatory (Rs compensation),10.072049999999999
+2013_03_22_0028,3,10087.71,63.857,,Excitatory (Rs compensation),10.08771
+2013_03_22_0028,4,10113.83,38.2848,,Excitatory (Rs compensation),10.11383
+2013_03_22_0028,5,10139.43,39.0625,,Excitatory (Rs compensation),10.13943
+2013_03_22_0028,6,10172.54,30.2024,,Excitatory (Rs compensation),10.172540000000001
+2013_03_22_0028,7,10195.84,42.9185,,Excitatory (Rs compensation),10.19584
+2013_03_22_0028,8,10227.28,31.8066,bout end,Excitatory (Rs compensation),10.22728
+2013_03_22_0028,9,10997.56,1.2982,bout start; spontaneous,Excitatory (Rs compensation),10.99756
+2013_03_22_0028,10,11026.86,34.1297,,Excitatory (Rs compensation),11.026860000000001
+2013_03_22_0028,11,11055.42,35.014,,Excitatory (Rs compensation),11.05542
+2013_03_22_0028,12,11085.13,33.6587,,Excitatory (Rs compensation),11.08513
+2013_03_22_0028,13,11122.15,27.0124,bout end,Excitatory (Rs compensation),11.12215
+2013_03_22_0028,14,25138.53,0.0713,bout start; shock,Excitatory (Rs compensation),25.13853
+2013_03_22_0028,15,25162.99,40.8831,,Excitatory (Rs compensation),25.16299
+2013_03_22_0028,16,25202.27,25.4582,,Excitatory (Rs compensation),25.202270000000002
+2013_03_22_0028,17,25235.64,29.967,,Excitatory (Rs compensation),25.23564
+2013_03_22_0028,18,25267.26,31.6256,,Excitatory (Rs compensation),25.26726
+2013_03_22_0028,19,25300.75,29.8597,,Excitatory (Rs compensation),25.30075
+2013_03_22_0028,20,25334.86,29.3169,bout end,Excitatory (Rs compensation),25.334860000000003
+2013_03_22_0028,21,26076.52,1.3483,bout start; spontaneous,Excitatory (Rs compensation),26.076520000000002
+2013_03_22_0028,22,26093.81,57.8369,,Excitatory (Rs compensation),26.09381
+2013_03_22_0028,23,26114.74,47.7783,,Excitatory (Rs compensation),26.11474
+2013_03_22_0028,24,26136.14,46.729,,Excitatory (Rs compensation),26.13614
+2013_03_22_0028,25,26159.66,42.517,,Excitatory (Rs compensation),26.15966
+2013_03_22_0028,26,26183.87,41.3052,,Excitatory (Rs compensation),26.18387
+2013_03_22_0028,27,26208.32,40.8998,,Excitatory (Rs compensation),26.20832
+2013_03_22_0028,28,26232.76,40.9165,,Excitatory (Rs compensation),26.23276
+2013_03_22_0028,29,26260.59,35.9324,,Excitatory (Rs compensation),26.26059
+2013_03_22_0028,30,26290.62,33.3,,Excitatory (Rs compensation),26.29062
+2013_03_22_0028,31,26318.4,35.9971,,Excitatory (Rs compensation),26.3184
+2013_03_22_0028,32,26349.02,32.6584,,Excitatory (Rs compensation),26.34902
+2013_03_22_0028,33,26380.93,31.3381,bout end,Excitatory (Rs compensation),26.38093
+2013_03_22_0028,34,26635.68,3.9254,bout start; spontaneous,Excitatory (Rs compensation),26.63568
+2013_03_22_0028,35,26658.34,44.1306,,Excitatory (Rs compensation),26.65834
+2013_03_22_0028,36,26683.0,40.5515,,Excitatory (Rs compensation),26.683
+2013_03_22_0028,37,26711.59,34.9773,,Excitatory (Rs compensation),26.71159
+2013_03_22_0028,38,26741.07,33.9213,,Excitatory (Rs compensation),26.74107
+2013_03_22_0028,39,26773.03,31.2891,,Excitatory (Rs compensation),26.77303
+2013_03_22_0028,40,26805.33,30.9598,,Excitatory (Rs compensation),26.80533
+2013_03_22_0028,41,26836.51,32.0718,bout end,Excitatory (Rs compensation),26.83651
+2013_03_22_0028,42,27413.88,1.732,bout start; spontaneous,Excitatory (Rs compensation),27.413880000000002
+2013_03_22_0028,43,27445.08,32.0513,,Excitatory (Rs compensation),27.44508
+2013_03_22_0028,44,27472.99,35.8295,,Excitatory (Rs compensation),27.472990000000003
+2013_03_22_0028,45,27509.43,27.4424,,Excitatory (Rs compensation),27.509430000000002
+2013_03_22_0028,46,27545.72,27.5558,,Excitatory (Rs compensation),27.545720000000003
+2013_03_22_0028,47,27580.86,28.4576,,Excitatory (Rs compensation),27.58086
+2013_03_22_0028,48,27615.43,28.9268,,Excitatory (Rs compensation),27.61543
+2013_03_22_0028,49,27640.04,40.6339,,Excitatory (Rs compensation),27.640040000000003
+2013_03_22_0028,50,27662.82,43.8982,bout end,Excitatory (Rs compensation),27.66282
+2013_03_22_0028,51,27739.74,13.0005,bout start; spontaneous,Excitatory (Rs compensation),27.73974
+2013_03_22_0028,52,27770.09,32.9489,,Excitatory (Rs compensation),27.77009
+2013_03_22_0028,53,27799.22,34.3289,,Excitatory (Rs compensation),27.799220000000002
+2013_03_22_0028,54,27830.06,32.4254,,Excitatory (Rs compensation),27.830060000000003
+2013_03_22_0028,55,27860.4,32.9598,,Excitatory (Rs compensation),27.860400000000002
+2013_03_22_0028,56,27890.95,32.7332,,Excitatory (Rs compensation),27.89095
+2013_03_22_0028,57,27921.15,33.1126,,Excitatory (Rs compensation),27.92115
+2013_03_22_0028,58,27956.52,28.2725,bout end,Excitatory (Rs compensation),27.95652
+2013_03_22_0028,59,31287.43,0.3002,bout start; spontaneous,Excitatory (Rs compensation),31.28743
+2013_03_22_0028,60,31305.86,54.2594,,Excitatory (Rs compensation),31.305860000000003
+2013_03_22_0028,61,31330.52,40.5515,,Excitatory (Rs compensation),31.33052
+2013_03_22_0028,62,31355.91,39.3856,bout end,Excitatory (Rs compensation),31.35591
+2013_03_22_0028,63,32284.64,1.0767,bout start; spontaneous,Excitatory (Rs compensation),32.28464
+2013_03_22_0028,64,32305.47,48.0077,,Excitatory (Rs compensation),32.30547
+2013_03_22_0028,65,32331.79,37.9939,,Excitatory (Rs compensation),32.33179
+2013_03_22_0028,66,32355.53,42.123,,Excitatory (Rs compensation),32.35553
+2013_03_22_0028,67,32378.14,44.2282,bout end,Excitatory (Rs compensation),32.37814
+2013_03_22_0028,68,34451.81,0.4822,bout start; spontaneous,Excitatory (Rs compensation),34.45181
+2013_03_22_0028,69,34482.9,32.1647,,Excitatory (Rs compensation),34.4829
+2013_03_22_0028,70,34514.33,31.8167,,Excitatory (Rs compensation),34.51433
+2013_03_22_0028,71,34543.99,33.7154,,Excitatory (Rs compensation),34.54399
+2013_03_22_0028,72,34568.72,40.4367,bout end,Excitatory (Rs compensation),34.56872
